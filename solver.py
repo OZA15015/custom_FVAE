@@ -99,6 +99,32 @@ class Solver(object):
         self.output_save = args.output_save
         mkdirs(self.output_dir)
 
+
+    def custom_loss(self, x): #lossは交差エントロピーを採用している, MSEの事例もある
+        #https://tips-memo.com/vae-pytorch#i-7, http://aidiary.hatenablog.com/entry/20180228/1519828344のlossを参考 
+        mean, var = self.VAE._encoder(x)
+        #KL = -0.5 * torch.mean(torch.sum(1 + torch.log(var) - mean**2 - var)) #オリジナル, mean意味わからんけど, あんまり値が変わらないか>ら
+        #上手くいくんじゃないか
+        #KL = 0.5 * torch.sum(torch.exp(var) + mean**2 - 1. - var)
+        KL = -0.5 * torch.sum(1 + var - mean.pow(2) - var.exp()) 
+        # sumを行っているのは各次元ごとに算出しているため
+        #print("KL: " + str(KL))
+        z = self.VAE._sample_z(mean, var)
+        y = self.VAE._decoder(z)
+        #delta = 1e-8
+        #reconstruction = torch.mean(torch.sum(x * torch.log(y + delta) + (1 - x) * torch.log(1 - y + delta)))                                    
+        #reconstruction = F.binary_cross_entropy(y, x.view(-1, 784), size_average=False)
+        reconstruction = F.binary_cross_entropy(y, x, size_average=False)
+        #交差エントロピー誤差を利用して, 対数尤度の最大化を行っている, 2つのみ=(1-x), (1-y)で算出可能
+        #http://aidiary.hatenablog.com/entry/20180228/1519828344(参考記事)
+        #print("reconstruction: " + str(reconstruction))
+        #lower_bound = [-KL, reconstruction]
+        #両方とも小さくしたい, クロスエントロピーは本来マイナス, KLは小さくしたいからプラスに変換
+        #returnで恐らくわかりやすくするために, 目的関数から誤差関数への変換をしている
+        #return -sum(lower_bound)
+        return KL + reconstruction
+
+
     def train(self):
         self.net_mode(train=True)
 
@@ -114,13 +140,15 @@ class Solver(object):
                      x_true1 =  x_true1.view(x_true1.shape[0], -1)
                 x_true1 = x_true1.to(self.device)
                 x_recon, mu, logvar, z = self.VAE(x_true1)
-                vae_recon_loss = recon_loss(x_true1, x_recon) #復元誤差, 交差エントロピー誤差
-                vae_kld = kl_divergence(mu, logvar)
+                x = x_true1.view(x_true1.shape[0], -1) #custom
+                vae_recon_loss = self.custom_loss(x) / self.batch_size #custom
+                #vae_recon_loss = recon_loss(x_true1, x_recon) #復元誤差, 交差エントロピー誤差
+                #vae_kld = kl_divergence(mu, logvar)
                 D_z = self.D(z)
                 vae_tc_loss = (D_z[:, :1] - D_z[:, 1:]).mean() #恐らく, discriminatorのloss
 
-                vae_loss = vae_recon_loss + vae_kld + self.gamma*vae_tc_loss
-
+                #vae_loss = vae_recon_loss + vae_kld + self.gamma*vae_tc_loss
+                vae_loss = vae_recon_loss + self.gamma*vae_tc_loss 
                 self.optim_VAE.zero_grad()
                 vae_loss.backward(retain_graph=True)
                 self.optim_VAE.step()
@@ -138,9 +166,11 @@ class Solver(object):
                 #if self.global_iter%self.print_iter == 0:
                 #    self.pbar.write('[{}] vae_recon_loss:{:.3f} vae_kld:{:.3f} vae_tc_loss:{:.3f} D_tc_loss:{:.3f}'.format(
                 #        self.global_iter, vae_recon_loss.item(), vae_kld.item(), vae_tc_loss.item(), D_tc_loss.item()))
-                if self.test_count % 18 == 0:
-                    self.pbar.write('[{}] vae_recon_loss:{:.3f} vae_kld:{:.3f} vae_tc_loss:{:.3f} D_tc_loss:{:.3f}'.format(
-                        self.global_iter, vae_recon_loss.item(), vae_kld.item(), vae_tc_loss.item(), D_tc_loss.item()))
+                if self.test_count % 547 == 0:
+                    #self.pbar.write('[{}] vae_recon_loss:{:.3f} vae_kld:{:.3f} vae_tc_loss:{:.3f} D_tc_loss:{:.3f}'.format(
+                        #self.global_iter, vae_recon_loss.item(), vae_kld.item(), vae_tc_loss.item(), D_tc_loss.item()))
+                    self.pbar.write('[{}] vae_recon_loss:{:.3f} vae_tc_loss:{:.3f} D_tc_loss:{:.3f}'.format(
+                        self.global_iter, vae_recon_loss.item(), vae_tc_loss.item(), D_tc_loss.item()))  
                     self.test_count = 0
                 
                 if self.global_iter%self.ckpt_save_iter == 0:
@@ -155,7 +185,7 @@ class Solver(object):
                                             soft_D_z=soft_D_z.mean().item(),
                                             soft_D_z_pperm=soft_D_z_pperm.mean().item(),
                                             recon=vae_recon_loss.item(),
-                                            kld=vae_kld.item(),
+                                            #kld=vae_kld.item(),
                                             acc=D_acc.item())
 
                 if self.viz_on and (self.global_iter%self.viz_la_iter == 0):
@@ -172,7 +202,8 @@ class Solver(object):
                     if self.dataset.lower() == '3dchairs':
                         self.visualize_traverse(limit=2, inter=0.5)
                     else:
-                        self.visualize_traverse(limit=3, inter=2/3)
+                        #self.visualize_traverse(limit=3, inter=2/3)
+                        print("ignore")
 
                 if self.global_iter >= self.max_iter:
                     out = True
@@ -180,7 +211,7 @@ class Solver(object):
                 self.test_count += 1
 
         self.pbar.write("[Training Finished]")
-        torch.save(self.VAE.state_dict(), "model1/test1_4000.pth")
+        torch.save(self.VAE.state_dict(), "model1/0531_128_2_gamma2.pth")
         self.pbar.close()
 
     def visualize_recon(self):
@@ -228,6 +259,7 @@ class Solver(object):
                       opts=dict(
                         xlabel='iteration',
                         ylabel='discriminator accuracy',))
+        '''
         self.viz.line(X=iters,
                       Y=kld,
                       env=self.name+'/lines',
@@ -236,6 +268,7 @@ class Solver(object):
                       opts=dict(
                         xlabel='iteration',
                         ylabel='kl divergence',))
+        '''
 
     def visualize_traverse(self, limit=3, inter=2/3, loc=-1):
         self.net_mode(train=False)
@@ -441,25 +474,53 @@ class Solver(object):
         else:
             if verbose:
                 self.pbar.write("=> no checkpoint found at '{}'".format(filepath))
+    
+    def senzai_view(self, z, label):
+        plt.figure(figsize=(10, 10))
+        plt.scatter(z[:, 0], z[:, 1], marker='.', c=label, cmap=pylab.cm.jet)
+        plt.colorbar()
+        plt.grid()
+        plt.title('oza_FVAE_2dimention')
+        plt.savefig('FVAE0531_128_2_gamma2_senzai.png')
 
     def load_model(self):
-        self.VAE.load_state_dict(torch.load("model1/test1_4000.pth", map_location=self.device))
+        self.VAE.load_state_dict(torch.load("model1/0531_128_2_gamma2.pth", map_location=self.device))
         for data, label in self.data_loader:
             data = data.to(self.device)
             data = data.view(data.shape[0], -1)
             label = label.detach().numpy()
             break
+        
+        n = 10
         x_recon, mu, logvar, z = self.VAE(data)
         z = Variable(z, volatile=True).cpu().numpy()
-        print("test")
-        print(z.shape)
-        print(label.shape)
+        data = Variable(data, volatile=True).cpu().numpy()
+        x_recon = Variable(x_recon, volatile=True).cpu().numpy()
+        '''
         plt.figure(figsize=(10, 10))
         plt.scatter(z[:, 0], z[:, 1], marker='.', c=label, cmap=pylab.cm.jet)
         plt.colorbar()
         plt.grid()
-        plt.savefig('testMNIST.png')
-        out_dir = 'view1'
-        n = 8
-        comparison = torch.cat([data[:n], x_recon[:n]])
-        save_image(comparison.data.cpu(), '{}/reconstruction_{}.png'.format(out_dir, "test"), nrow=n)
+        plt.savefig('FVAE0528_128_2_senzai.png')
+        '''
+        if self.z_dim == 2:
+            self.senzai_view(z, label)
+        plt.figure(figsize=(12, 6))
+        for i in range(n):
+            ax = plt.subplot(3, n, i+1)
+            if i == 1:
+                plt.title('Original MNIST')
+            plt.imshow(data[i].reshape(28, 28))
+            plt.gray()
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            ax = plt.subplot(3, n, i+1+n)
+            if i == 1:
+                plt.title('FVAE_Reconstruction MNIST(2dim)')
+            plt.imshow(x_recon[i].reshape(28, 28))
+            plt.gray()
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+        plt.savefig("FVAE0531_128_2_gamma2.pth_recon.png")
+        plt.show()
+        plt.close()
