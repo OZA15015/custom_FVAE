@@ -7,6 +7,7 @@ import torch
 from solver import Solver
 from utils import str2bool
 
+'''
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 
@@ -14,7 +15,19 @@ init_seed = 1
 torch.manual_seed(init_seed)
 torch.cuda.manual_seed(init_seed)
 np.random.seed(init_seed)
+'''
 
+#----以下全て, 再現性関連
+import numpy as np
+import random                                                                                                                                 
+# cuDNNを使用しない
+seed = 32
+torch.backends.cudnn.deterministic = True  
+random.seed(seed)  
+np.random.seed(seed)  
+torch.manual_seed(seed)  
+# cuda でのRNGを初期化  
+torch.cuda.manual_seed(seed) 
 
 def main(args):
     net = Solver(args)

@@ -18,6 +18,18 @@ import matplotlib.pyplot as plt
 import pylab
 from torch.autograd import Variable
 
+#----以下全て, 再現性関連
+import random                                                                                                                                 
+# cuDNNを使用しない
+seed = 32
+torch.backends.cudnn.deterministic = True  
+random.seed(seed)  
+np.random.seed(seed)  
+torch.manual_seed(seed)  
+# cuda でのRNGを初期化  
+torch.cuda.manual_seed(seed) 
+
+
 class Solver(object):
     def __init__(self, args):
         # Misc
@@ -211,7 +223,7 @@ class Solver(object):
                 self.test_count += 1
 
         self.pbar.write("[Training Finished]")
-        torch.save(self.VAE.state_dict(), "model1/0531_128_2_gamma2.pth")
+        torch.save(self.VAE.state_dict(), "model1/0531_test2.pth")
         self.pbar.close()
 
     def visualize_recon(self):

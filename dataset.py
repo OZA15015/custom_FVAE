@@ -9,6 +9,17 @@ from torchvision.datasets import ImageFolder
 from torchvision import transforms
 from sklearn.datasets import fetch_openml #MNIST
 
+#----以下全て, 再現性関連
+import numpy as np
+import random
+# cuDNNを使用しない
+seed = 32
+torch.backends.cudnn.deterministic = True
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+# cuda でのRNGを初期化
+torch.cuda.manual_seed(seed)
 
 def is_power_of_2(num):
     return ((num & (num - 1)) == 0) and num != 0

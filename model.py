@@ -4,6 +4,20 @@ import torch.nn as nn
 import torch.nn.init as init
 from torch.nn import functional as F
 
+#----以下全て, 再現性関連
+import numpy as np
+import random
+seed = 32
+# cuDNNを使用しない  
+torch.backends.cudnn.deterministic = True  
+random.seed(seed)  
+np.random.seed(seed)  
+torch.manual_seed(seed)  
+# cuda でのRNGを初期化  
+torch.cuda.manual_seed(seed)  
+
+
+
 class Discriminator(nn.Module):
     def __init__(self, z_dim):
         super(Discriminator, self).__init__()
