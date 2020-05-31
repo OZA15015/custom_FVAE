@@ -223,7 +223,7 @@ class Solver(object):
                 self.test_count += 1
 
         self.pbar.write("[Training Finished]")
-        torch.save(self.VAE.state_dict(), "model1/0531_test2.pth")
+        torch.save(self.VAE.state_dict(), "model1/0531_128_2_gamma2.pth")
         self.pbar.close()
 
     def visualize_recon(self):
@@ -496,7 +496,7 @@ class Solver(object):
         plt.savefig('FVAE0531_128_2_gamma2_senzai.png')
 
     def load_model(self):
-        self.VAE.load_state_dict(torch.load("model1/0531_128_2_gamma2.pth", map_location=self.device))
+        self.VAE.load_state_dict(torch.load("model1/0531_128_20_gamma2.pth", map_location=self.device))
         for data, label in self.data_loader:
             data = data.to(self.device)
             data = data.view(data.shape[0], -1)
@@ -533,6 +533,6 @@ class Solver(object):
             plt.gray()
             ax.get_xaxis().set_visible(False)
             ax.get_yaxis().set_visible(False)
-        plt.savefig("FVAE0531_128_2_gamma2.pth_recon.png")
+        plt.savefig("FVAE0531_128_2_gamma20_recon.png")
         plt.show()
         plt.close()
