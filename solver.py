@@ -528,11 +528,11 @@ class Solver(object):
             ax.get_yaxis().set_visible(False)
             ax = plt.subplot(3, n, i+1+n)
             if i == 1:
-                plt.title('FVAE_Reconstruction MNIST(2dim)')
+                plt.title('FVAE_Reconstruction MNIST(20dim)')
             plt.imshow(x_recon[i].reshape(28, 28))
             plt.gray()
             ax.get_xaxis().set_visible(False)
             ax.get_yaxis().set_visible(False)
-        plt.savefig("FVAE0531_128_2_gamma20_recon.png")
+        plt.savefig("FVAE0531_128_20_gamma2_recon.png")
         plt.show()
         plt.close()
