@@ -11,7 +11,7 @@ from torchvision.utils import make_grid, save_image
 
 from utils import DataGather, mkdirs, grid2gif
 from ops import recon_loss, kl_divergence, permute_dims
-from model import FactorVAE1, FactorVAE2, Custom_FactorVAE1, Custom_FactorVAE2, Discriminator
+from model import FactorVAE1, FactorVAE2, Custom_FactorVAE1, Custom_FactorVAE2, Discriminator, Glove_FactorVAE1
 from dataset import return_data
 import numpy as np
 import matplotlib.pyplot as plt
@@ -71,7 +71,10 @@ class Solver(object):
         elif args.dataset == 'load_mnist':
             self.VAE = Custom_FactorVAE2(self.z_dim).to(self.device)
             self.nc = 3
-        
+       
+        elif args.dataset == 'glove/numpy_vector/300d_wiki.npy': 
+            self.VAE = Glove_FactorVAE1(self.z_dim).to(self.device)
+            self.nc = 3
         else:
             self.VAE = FactorVAE2(self.z_dim).to(self.device)
             self.nc = 3

@@ -344,6 +344,63 @@ class Custom_FactorVAE2(nn.Module):
             x_recon = self._decoder(z)
             return x_recon, mean, var, z.squeeze()
 
+class Glove_FactorVAE1(nn.Module):
+    def __init__(self, z_dim=100):
+        super(Glove_FactorVAE1, self).__init__()
+        self.z_dim = z_dim
+        self.dense_enc1 = nn.Linear(300, 250)
+        self.dense_enc2 = nn.Linear(250, 150)
+        self.dense_encmean = nn.Linear(150, z_dim)
+        self.dense_encvar = nn.Linear(150, z_dim)
+        self.dense_dec1 = nn.Linear(z_dim, 150)
+        self.dense_dec2 = nn.Linear(150, 250)
+        self.dense_dec3 = nn.Linear(250, 300)
+        #self.weight_init()
+ 
+    def weight_init(self, mode='normal'):
+        if mode == 'kaiming':
+            initializer = kaiming_init
+        elif mode == 'normal':
+            initializer = normal_init
+ 
+        for block in self._modules:
+            for m in self._modules[block]:
+                initializer(m)
+ 
+    def _encoder(self, x):
+        x = F.relu(self.dense_enc1(x))
+        x = F.relu(self.dense_enc2(x))
+        mean = self.dense_encmean(x)
+        var = self.dense_encvar(x)
+        #var = F.softplus(self.dense_encvar(x))
+        return mean, var
+    
+    def _sample_z(self, mean, var): #普通にやると誤差逆伝搬ができないのでReparameterization Trickを活用
+        device = 'cuda'
+        epsilon = torch.randn(mean.shape).to(device)
+        #return mean + torch.sqrt(var) * epsilon #平均 + episilonは正規分布に従う乱数, torc.sqrtは分散とみなす？平均のルート
+        return mean + epsilon * torch.exp(0.5*var)
+        # イメージとしては正規分布の中からランダムにデータを取り出している
+        #入力に対して潜在空間上で類似したデータを復元できるように学習, 潜在変数を変化させると類似したデータを生成
+        #Autoencoderは決定論的入力と同じものを復元しようとする
+
+    def _decoder(self,z):
+        x = F.relu(self.dense_dec1(z))
+        x = F.relu(self.dense_dec2(x))
+        x = F.sigmoid(self.dense_dec3(x))
+        return x
+  
+    def forward(self, x, no_dec=False):
+        x = x.view(x.shape[0], -1)
+        mean, var = self._encoder(x)
+        z = self._sample_z(mean, var)
+        if no_dec:
+            return z.squeeze()
+        else:
+            x_recon = self._decoder(z)
+            return x_recon, mean, var, z.squeeze()
+
+
 def kaiming_init(m):
     if isinstance(m, (nn.Linear, nn.Conv2d)):
         init.kaiming_normal_(m.weight)

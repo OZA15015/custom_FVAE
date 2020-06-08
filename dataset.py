@@ -90,7 +90,7 @@ class MNISTDataset(Dataset):
 
 class load_MNISTDataset(Dataset):
     
-    def __init__(self, data_tensor=None, transform=None):
+    def __init__(self, data_tensor=None, transform=None, root=None):
         self.mnist = fetch_openml('mnist_784', version=1,)
         self.data_tensor = self.mnist.data.reshape(-1, 28, 28).astype('uint8')
         self.target = self.mnist.target.astype(int)
@@ -110,6 +110,25 @@ class load_MNISTDataset(Dataset):
             
         #sample = data1
         return data1, target1
+
+class GloveDataset(Dataset):
+    def __init__(self, root, data_tensor=None, transform=None):
+        self.data_tensor = np.load(root)
+        self.indices = range(len(self))
+        #print(self.data_tensor.shape)
+        #print(self.indices)
+ 
+    def __getitem__(self, index1):
+        index2 = random.choice(self.indices)
+ 
+        data1 = self.data_tensor[index1]
+        data2 = self.data_tensor[index2] 
+ 
+        return data1, data2
+ 
+    def __len__(self): 
+        #print(len(self.data_tensor))
+        return len(self.data_tensor)
 
 
 def return_data(args):
@@ -148,6 +167,11 @@ def return_data(args):
         print("load_MNIST")
         train_kwargs = {'data_tensor':None, 'transform':transform2}
         dset = load_MNISTDataset
+
+    elif name.lower() == 'glove/numpy_vector/300d_wiki.npy': #試験的Glove
+        print("Train_Glove")
+        train_kwargs = {'data_tensor':None, 'transform':None, 'root':'/home/oza/pre-experiment/' + name.lower()}
+        dset = GloveDataset
 
     else:
         raise NotImplementedError
