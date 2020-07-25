@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torchvision.utils import make_grid, save_image
 
 from utils import DataGather, mkdirs, grid2gif
-from ops import recon_loss, kl_divergence, permute_dims
+from ops import recon_loss, kl_divergence, permute_dims, MSE
 from model import FactorVAE1, FactorVAE2, Custom_FactorVAE1, Custom_FactorVAE2, Discriminator, Glove_FactorVAE1
 from dataset import return_data
 import numpy as np
@@ -156,18 +156,20 @@ class Solver(object):
                 x_true1 = x_true1.to(self.device)
                 x_recon, mu, logvar, z = self.VAE(x_true1)
                 x = x_true1.view(x_true1.shape[0], -1) #custom
-                vae_recon_loss = self.custom_loss(x) / self.batch_size #custom
-                #vae_recon_loss = recon_loss(x_true1, x_recon) #復元誤差, 交差エントロピー誤差
-                #vae_kld = kl_divergence(mu, logvar)
+
+                #vae_recon_loss = self.custom_loss(x) / self.batch_size #custom
+                vae_recon_loss = recon_loss(x, x_recon) #復元誤差, 交差エントロピー誤差
+                vae_kld = kl_divergence(mu, logvar)
                 D_z = self.D(z)
                 vae_tc_loss = (D_z[:, :1] - D_z[:, 1:]).mean() #恐らく, discriminatorのloss
 
-                #vae_loss = vae_recon_loss + vae_kld + self.gamma*vae_tc_loss
-                vae_loss = vae_recon_loss + self.gamma*vae_tc_loss 
+                vae_loss = vae_recon_loss + vae_kld + self.gamma*vae_tc_loss
+                #vae_loss = vae_recon_loss + self.gamma*vae_tc_loss 
                 self.optim_VAE.zero_grad()
                 vae_loss.backward(retain_graph=True)
                 self.optim_VAE.step()
                 x_true2 = x_true2.to(self.device)
+                #x_true2 = x_true2.view(x_true2.shape[0], -1)
                 z_prime = self.VAE(x_true2, no_dec=True) #trueにすることで潜在空間に写像した状態のデータを獲得?
                 z_pperm = permute_dims(z_prime).detach()
                 D_z_pperm = self.D(z_pperm)
@@ -499,7 +501,7 @@ class Solver(object):
         plt.savefig('FVAE0531_128_2_gamma2_senzai.png')
 
     def load_model(self):
-        self.VAE.load_state_dict(torch.load("model1/0531_128_20_gamma2.pth", map_location=self.device))
+        self.VAE.load_state_dict(torch.load("model1/0531_128_2_gamma2.pth", map_location=self.device))
         for data, label in self.data_loader:
             data = data.to(self.device)
             data = data.view(data.shape[0], -1)
@@ -511,7 +513,19 @@ class Solver(object):
         z = Variable(z, volatile=True).cpu().numpy()
         data = Variable(data, volatile=True).cpu().numpy()
         x_recon = Variable(x_recon, volatile=True).cpu().numpy()
+
+        #以下, ラベルごとの分散算出
         '''
+        sum = 0
+        for i in range(10):
+            tmp  = np.where(label == i)
+            print(np.var(z[tmp]))
+            sum += np.var(z[tmp])
+        sum /= 10
+        print("Ave var: " + str(sum))
+        quit()
+        #ここまで, 通常は消すこと
+        
         plt.figure(figsize=(10, 10))
         plt.scatter(z[:, 0], z[:, 1], marker='.', c=label, cmap=pylab.cm.jet)
         plt.colorbar()
